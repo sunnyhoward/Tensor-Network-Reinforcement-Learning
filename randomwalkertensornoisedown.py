@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+#This implementation includes the noise when going up. When going down nothing
+# has changed, but when going up 68% chance of going up 1, 16% of 2 or staying same
 
 #function to create the initial policy
 def initializepolicy(T,noS):
@@ -43,13 +45,11 @@ def plotgreedy(policy,T,p0):
    plt.yticks(np.arange(-T,T))
    plt.grid()
    
-   
 def generatetrajectory(policy,T,p0):
    state = p0
    s = np.where(state==1)[0]
    shist=np.zeros(T+1)
    shist[0] = s
-   R = 0
    for t in range(T):
        #get action
        #action = np.argmax(np.tensordot(state,policy[t],((0),(0))))
@@ -60,22 +60,18 @@ def generatetrajectory(policy,T,p0):
        state = np.zeros(2*T+1)
        
        if action == 1:
-          state[s+1] = 1
-           
+           rand = np.random.rand()
+           if rand < 0.68:
+               state[s+1] = 1
+           elif rand>0.68 and rand<0.84:
+               state[s+2] = 1
+           elif rand > 0.84:
+               state[s] = 1
        else:
            state[s-1] = 1
            
        s = np.where(state==1)[0]
        shist[t+1] = s
-       if t!=T-1:
-           if s[0]<(len(p0)+1)/2-1:
-               R+=-1
-       elif t ==T-1:
-           if s[0]==(len(p0)+1)/2-1:
-               R+=1
-           else:
-               R+=-10
-           
    plt.plot(range(T+1),shist-T)
    plt.plot(range(-1,T+2),np.zeros(T+3),'r:')
    plt.xlim(0,T)
@@ -85,7 +81,7 @@ def generatetrajectory(policy,T,p0):
    plt.xticks(np.arange(0,T+1))
    plt.yticks(np.arange(-T,T))
    plt.grid()
-   print('The Return was ' + str(R))
+    
 
 #function to create the rank 4 tensor. 
 def createM(noS):
@@ -106,21 +102,37 @@ def createM(noS):
     
     #first will update the M tensor so that if the initial state is 0 or below, and we take
     #an action to go down then there is a prob of 1 of getting reward  = -1 
-    for x in range(1,int((noS+1)/2)):
-        M[x,x-1,0,2] = 1
-        
-    #similarly, if we go up from anything below -1, we also will recieve a negative reward.
+    for x in range(2,int((noS+1)/2)):
+        M[x,x-1,0,2] = 0.68
+        M[x,x-2,0,2] = 0.16
+        M[x,x,0,2] = 0.16
+    
+    M[int((noS+1)/2)-1,int((noS+1)/2)-1,0,2] = 0 #correct 0
+    M[int((noS+1)/2)-1,int((noS+1)/2)-1,0,1] = 0.16   
+    M[1,0,0,2]=0.84 #if jump down from second last
+    M[1,1,0,2]=0.16
+    M[0,0,0,2] = 1 
+    
+    
+    
+     #similarly, if we go up from anything below -1, we also will recieve a negative reward.
     for x in range(0,int((noS+1)/2-2)):
         M[x,x+1,1,2] = 1
-    
+
+
     #now update that when -1 or above, going up will give reward of 0 
     for x in range(int((noS+1)/2-2),noS-1):
         M[x,x+1,1,1] = 1
     
     #now update that when above 0, going down will give reward of 0 
     for x in range(int((noS+1)/2),noS):
-        M[x,x-1,0,1] = 1
-    
+        M[x,x-1,0,1] = 0.68
+        M[x,x,0,1] = 0.16
+        M[x,x-2,0,1] = 0.16
+        
+    M[int((noS+1)/2),int((noS+1)/2)-2,0,1] = 0
+    M[int((noS+1)/2),int((noS+1)/2)-2,0,2] = 0.16
+        
     return M
     
     
@@ -136,23 +148,42 @@ def createMT(noS):
     
     #if we go down from any position between 2 to the max then we recieve -10 reward 
     for x in range(int((noS+1)/2)+1,noS):
-        MT[x,x-1,0,3] = 1
-     
+        MT[x,x-1,0,3] = 0.68
+        MT[x,x,0,3] = 0.16
+        MT[x,x-2,0,3] = 0.16
+    
+    MT[int((noS+1)/2)+1,int((noS+1)/2)-1,0,3] = 0
+    MT[int((noS+1)/2)+1,int((noS+1)/2)-1,0,0] = 0.16
+    MT[int((noS+1)/2),int((noS+1)/2)-1,0,0] = 0.68
+    MT[int((noS+1)/2),int((noS+1)/2)-2,0,3] = 0.16
+    MT[int((noS+1)/2),int((noS+1)/2),0,3] = 0.16
+    
     #if we go down from 0 or below we will recieve -10 reward.
-    for x in range(1,int((noS+1)/2)):
-        MT[x,x-1,0,3] = 1    
+    for x in range(2,int((noS+1)/2)):
+        MT[x,x-1,0,3] = 0.68
+        MT[x,x,0,3] = 0.16
+        MT[x,x-2,0,3] = 0.16  
+    
+    MT[int((noS+1)/2)-1,int((noS+1)/2)-1,0,3] = 0
+    MT[int((noS+1)/2)-1,int((noS+1)/2)-1,0,0] = 0.16
+    
+    MT[1,0,0,3] = 0.84
+    MT[1,1,0,3] = 0.16
+    MT[0,0,0,3] = 1
+        
         
     #similarly, if we go up from 0 or above we will recieve -10 reward.
     for x in range(int((noS+1)/2-1),noS-1):
         MT[x,x+1,1,3] = 1
-        
+    
     #if we go up from a state between the min and -2 we will recieve -10 reward.
     for x in range(0,int((noS+1)/2-2)):
         MT[x,x+1,1,3] = 1
-        
-    #finally, if we go down from 1, or up from -1 we recieve a +1 reward. 
-    MT[int((noS+1)/2),int((noS+1)/2-1),0,0] = 1
+    
     MT[int((noS+1)/2-2),int((noS+1)/2-1),1,0] = 1
+    
+    
+
     
     return MT
         
@@ -300,7 +331,7 @@ def contracteverything(M,MT,W,W1,WT,flatreward,policy,p0,flatstate,T,copy,plot):
     expectedreturn = contractlayerT(MT,WT,flatstate,copy,output,policy[T-1],flatreward)
     
     print(expectedreturn)
-    if plot == True:
+    if plot==True:
         plotgreedy(policy,T,p0)
     return expectedreturn
 
@@ -487,7 +518,7 @@ def DRMGpolicyoptimisation(flatreward,policy,M,W,W1,p0,copy,MT,WT,flatstate,T):
 if __name__ == '__main__':
     
     #can choose value of T
-    T = 6
+    T = 8
     #number of states.
     noS = 2*T+1
     
@@ -521,5 +552,4 @@ if __name__ == '__main__':
     policy = DRMGpolicyoptimisation(flatreward, policy, M, W, W1, p0, copy, MT, WT, flatstate, T)
     plt.figure()
     contracteverything(M,MT,W,W1,WT,flatreward,policy,p0,flatstate,T,copy,True)
-
-
+    
