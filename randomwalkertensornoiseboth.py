@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.stats
 
 #This implementation includes the noise when going up. When going down nothing
 # has changed, but when going up 68% chance of going up 1, 16% of 2 or staying same
@@ -95,7 +96,7 @@ def generatetrajectory(policy,T,p0):
     
 
 #function to create the rank 4 tensor. 
-def createM(noS):
+def createM(noS,prob1,prob2):
     M = np.zeros((noS,noS,2,4)) 
     
     # M[St-1,St,a,r]
@@ -114,64 +115,70 @@ def createM(noS):
     #first will update the M tensor so that if the initial state is 0 or below, and we take
     #an action to go down then there is a prob of 1 of getting reward  = -1 
     for x in range(2,int((noS+1)/2)):
-        M[x,x-1,0,2] = 0.68
-        M[x,x-2,0,2] = 0.16
-        M[x,x,0,2] = 0.16
+        M[x,x-1,0,2] = prob1
+        M[x,x-2,0,2] = prob2
+        M[x,x,0,2] = prob2
     
     M[int((noS+1)/2)-1,int((noS+1)/2)-1,0,2] = 0 #correct 0
-    M[int((noS+1)/2)-1,int((noS+1)/2)-1,0,1] = 0.16   
-    M[1,0,0,2]=0.84 #if jump down from second last
-    M[1,1,0,2]=0.16
+    M[int((noS+1)/2)-1,int((noS+1)/2)-1,0,1] = prob2  
+    M[1,0,0,2]=prob1+prob2 #if jump down from second last
+    M[1,1,0,2]=prob2
     M[0,0,0,2] = 1 
     
         
     #similarly, if we go up from anything below -2, we also will recieve a negative reward.
     for x in range(0,int((noS+1)/2-3)):
-        M[x,x+1,1,2] = 0.68
-        M[x,x+2,1,2] = 0.16
-        M[x,x,1,2] = 0.16
+        M[x,x+1,1,2] = prob1
+        M[x,x+2,1,2] = prob2
+        M[x,x,1,2] = prob2
         
     #if in state -2, if we go up 2 we get reward = 0
-    M[int((noS+1)/2 -3),int((noS+1)/2 -2),1,2]=0.68
-    M[int((noS+1)/2 -3),int((noS+1)/2 -1),1,1]=0.16
-    M[int((noS+1)/2 -3),int((noS+1)/2 -3),1,2]=0.16
+    M[int((noS+1)/2 -3),int((noS+1)/2 -2),1,2]=prob1
+    M[int((noS+1)/2 -3),int((noS+1)/2 -1),1,1]=prob2
+    M[int((noS+1)/2 -3),int((noS+1)/2 -3),1,2]=prob2
     
     
 
 
     #now update that when 0 or above, going up will give reward of 0 
     for x in range(int((noS+1)/2-1),noS-2):
-        M[x,x+1,1,1] = 0.68
-        M[x,x+2,1,1] = 0.16
-        M[x,x,1,1] = 0.16
+        M[x,x+1,1,1] = prob1
+        M[x,x+2,1,1] = prob2
+        M[x,x,1,1] = prob2
     
     #if instate -1, going up 1 or 2 gives 0 reward, staying same gives -1 reward
-    M[int((noS+1)/2 -2),int((noS+1)/2-1),1,1]=0.68
-    M[int((noS+1)/2 -2),int((noS+1)/2),1,1]=0.16 
-    M[int((noS+1)/2 -2),int((noS+1)/2 -2),1,2]=0.16    
+    M[int((noS+1)/2 -2),int((noS+1)/2-1),1,1]=prob1
+    M[int((noS+1)/2 -2),int((noS+1)/2),1,1]=prob2
+    M[int((noS+1)/2 -2),int((noS+1)/2 -2),1,2]=prob2  
     
     #now update that when above 0, going down will give reward of 0 
     for x in range(int((noS+1)/2),noS):
-        M[x,x-1,0,1] = 0.68
-        M[x,x,0,1] = 0.16
-        M[x,x-2,0,1] = 0.16
+        M[x,x-1,0,1] = prob1
+        M[x,x,0,1] = prob2
+        M[x,x-2,0,1] = prob2
         
     M[int((noS+1)/2),int((noS+1)/2)-2,0,1] = 0
-    M[int((noS+1)/2),int((noS+1)/2)-2,0,2] = 0.16
+    M[int((noS+1)/2),int((noS+1)/2)-2,0,2] = prob2
     
     #Finally lets ammend the top 2 states so that we cant jump out of cell.
     M[int(noS-2),:,:,:] = 0
     M[int(noS-1),:,:,:] = 0
-    M[int(noS-2),int(noS-2),1,1] = 0.32 #if jump up from 2nd top cell then stay same
-    M[int(noS-2),int(noS-1),1,1] = 0.68 #if jump up from 2nd top cell then go up 1
-    M[int(noS-2),int(noS-3),0,1] = 1 #if go down from 2nd top cell then go down 
+    M[int(noS-2),int(noS-2),1,1] = prob2 #if jump up from 2nd top cell then stay same
+    M[int(noS-2),int(noS-1),1,1] = prob1+prob2 #if jump up from 2nd top cell then go up 1
+    M[int(noS-2),int(noS-3),0,1] = prob1 #if go down from 2nd top cell then go down 
+    M[int(noS-2),int(noS-2),0,1] = prob2 #if go down from 2nd top cell then go down 
+    M[int(noS-2),int(noS-4),0,1] = prob2 #if go down from 2nd top cell then go down 
+
     M[int(noS-1),int(noS-1),1,1] = 1 #if jump up from top cell then stay same
-    M[int(noS-1),int(noS-2),0,1] = 1 #if jump down from  top cell then go down
+    M[int(noS-1),int(noS-2),0,1] = prob1 #if jump down from  top cell then go down
+    M[int(noS-1),int(noS-3),0,1] = prob2 #if jump down from  top cell then go down
+    M[int(noS-1),int(noS-1),0,1] = prob2 #if jump down from  top cell then go down
+    
     return M
     
     
 #function to create the end of M tensor for the last time step. 
-def createMT(noS):
+def createMT(noS,prob1,prob2):
     MT = np.zeros((noS,noS,2,4)) 
     
     #in this case, we simply get a -10 reward for not being at position 0, at T
@@ -181,66 +188,66 @@ def createMT(noS):
     #possible values for reward are 1, 0, -1, -10
     
     for x in range(int((noS+1)/2)+1,noS):
-        MT[x,x-1,0,3] = 0.68
-        MT[x,x,0,3] = 0.16
-        MT[x,x-2,0,3] = 0.16
+        MT[x,x-1,0,3] = prob1
+        MT[x,x,0,3] = prob2
+        MT[x,x-2,0,3] = prob2
     
     MT[int((noS+1)/2)+1,int((noS+1)/2)-1,0,3] = 0
-    MT[int((noS+1)/2)+1,int((noS+1)/2)-1,0,0] = 0.16
-    MT[int((noS+1)/2),int((noS+1)/2)-1,0,0] = 0.68
-    MT[int((noS+1)/2),int((noS+1)/2)-2,0,3] = 0.16
-    MT[int((noS+1)/2),int((noS+1)/2),0,3] = 0.16
+    MT[int((noS+1)/2)+1,int((noS+1)/2)-1,0,0] = prob2
+    MT[int((noS+1)/2),int((noS+1)/2)-1,0,0] = prob1
+    MT[int((noS+1)/2),int((noS+1)/2)-2,0,3] = prob2
+    MT[int((noS+1)/2),int((noS+1)/2),0,3] = prob2
      
     for x in range(2,int((noS+1)/2)):
-        MT[x,x-1,0,3] = 0.68
-        MT[x,x,0,3] = 0.16
-        MT[x,x-2,0,3] = 0.16  
+        MT[x,x-1,0,3] = prob1
+        MT[x,x,0,3] = prob2
+        MT[x,x-2,0,3] = prob2
     
     MT[int((noS+1)/2)-1,int((noS+1)/2)-1,0,3] = 0
-    MT[int((noS+1)/2)-1,int((noS+1)/2)-1,0,0] = 0.16
+    MT[int((noS+1)/2)-1,int((noS+1)/2)-1,0,0] = prob2
     
-    MT[1,0,0,3] = 0.84
-    MT[1,1,0,3] = 0.16
+    MT[1,0,0,3] = prob1+prob2
+    MT[1,1,0,3] = prob2
     MT[0,0,0,3] = 1 
         
     #similarly, if we go up from 1 or above we will recieve -10 reward.
     for x in range(int((noS+1)/2),noS-2):
-        MT[x,x+1,1,3] = 0.68
-        MT[x,x+2,1,3] = 0.16
-        MT[x,x,1,3] = 0.16
+        MT[x,x+1,1,3] = prob1
+        MT[x,x+2,1,3] = prob2
+        MT[x,x,1,3] = prob2
     
     #going up from zero can score you either +1 or -10
-    MT[int((noS+1)/2)-1,int((noS+1)/2)-1,1,0] = 0.16
-    MT[int((noS+1)/2)-1,int((noS+1)/2),1,3] = 0.68
-    MT[int((noS+1)/2)-1,int((noS+1)/2)+1,1,3] = 0.16
+    MT[int((noS+1)/2)-1,int((noS+1)/2)-1,1,0] = prob2
+    MT[int((noS+1)/2)-1,int((noS+1)/2),1,3] = prob1
+    MT[int((noS+1)/2)-1,int((noS+1)/2)+1,1,3] = prob2
     
     #If we go up or down from highest state we score -10
     MT[int(noS-1),int(noS-1),1,3] = 1
     
     #if we go up from second highest state we score -10
-    MT[int(noS-2),int(noS-2),1,3] = 0.32
-    MT[int(noS-2),int(noS-1),1,3] = 0.68
+    MT[int(noS-2),int(noS-2),1,3] = prob2
+    MT[int(noS-2),int(noS-1),1,3] = prob1+prob2
 
     
     #if we go up from a state between the min and -3 we will recieve -10 reward.
     for x in range(0,int((noS+1)/2-3)):
-        MT[x,x+1,1,3] = 0.68
-        MT[x,x+2,1,3] = 0.16
-        MT[x,x,1,3] = 0.16
+        MT[x,x+1,1,3] = prob1
+        MT[x,x+2,1,3] = prob2
+        MT[x,x,1,3] = prob2
         
     #going up from -2 can yield 2 possibiliies
-    MT[int((noS+1)/2-3),int((noS+1)/2-1),1,0] = 0.16
-    MT[int((noS+1)/2-3),int((noS+1)/2-2),1,3] = 0.68
-    MT[int((noS+1)/2-3),int((noS+1)/2-3),1,3] = 0.16
+    MT[int((noS+1)/2-3),int((noS+1)/2-1),1,0] = prob2
+    MT[int((noS+1)/2-3),int((noS+1)/2-2),1,3] = prob1
+    MT[int((noS+1)/2-3),int((noS+1)/2-3),1,3] = prob2
 
     
     
 
     
     #if we go up from -1 then a few things can happen
-    MT[int((noS+1)/2-2),int((noS+1)/2-1),1,0] = 0.68
-    MT[int((noS+1)/2-2),int((noS+1)/2-2),1,3] = 0.16
-    MT[int((noS+1)/2-2),int((noS+1)/2),1,3] = 0.16
+    MT[int((noS+1)/2-2),int((noS+1)/2-1),1,0] = prob1
+    MT[int((noS+1)/2-2),int((noS+1)/2-2),1,3] = prob2
+    MT[int((noS+1)/2-2),int((noS+1)/2),1,3] = prob2
 
     
     return MT
@@ -388,7 +395,7 @@ def contracteverything(M,MT,W,W1,WT,flatreward,policy,p0,flatstate,T,copy,plot):
     
     expectedreturn = contractlayerT(MT,WT,flatstate,copy,output,policy[T-1],flatreward)
     
-    print(expectedreturn)
+    #print(expectedreturn)
     if plot==True:
         plotgreedy(policy,T,p0)
     return expectedreturn
@@ -571,7 +578,18 @@ def DRMGpolicyoptimisation(flatreward,policy,M,W,W1,p0,copy,MT,WT,flatstate,T):
 
     return policy
     
-    
+def choosedistribution(dist,sd):
+    if dist =='normal':
+        prob1 = scipy.stats.norm.cdf(1,0,sd) - scipy.stats.norm.cdf(-1,0,sd)
+        prob2 = (1-prob1)/2
+    elif dist == 'uniform':
+        prob1 = 1/3
+        prob2 = 1/3
+    else:
+        print('error')
+    return prob1,prob2
+
+
 #here is practice setting up the model. 
 if __name__ == '__main__':
     
@@ -593,9 +611,11 @@ if __name__ == '__main__':
     
     rewardvector = np.asarray([1,0,-1,-10])
     
+    prob1,prob2 = choosedistribution('normal', 1)
+    
     #M tensors are same for all time steps apart from last (MT)
-    M=createM(noS)
-    MT=createMT(noS)
+    M=createM(noS,prob1,prob2)
+    MT=createMT(noS,prob1,prob2)
     
     #W tensors are same for all timesteps apart from timesteps 1 and T
     W = createW(rewardvector)
